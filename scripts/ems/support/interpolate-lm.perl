@@ -10,6 +10,7 @@ use File::Temp qw/tempdir/;
 use File::Path qw/rmtree/;
 use Getopt::Long "GetOptions";
 use Symbol;
+use IO::Select;
 
 binmode(STDIN, ":utf8");
 binmode(STDOUT, ":utf8");
@@ -201,16 +202,30 @@ sub saferun3 {
   my $rdr = gensym();
   my $err = gensym();
   my $pid = open3($wtr, $rdr, $err, @_);
-  close($wtr);
+  print STDERR "[PID]: $pid\n";
+  my $sel = new IO::Select;
+  $sel->add($rdr, $err);
   my $gotout = "";
-  $gotout .= $_ while (<$rdr>);
-  close $rdr;
   my $goterr = "";
-  if (defined $err) {
-    $goterr .= $_ while (<$err>);
-    close $err;
-  }
-  waitpid($pid, 0);
+
+  while(my @fhs = $sel->can_read) {
+        foreach my $fh (@fhs) {
+            my $line = <$fh>;
+            unless(defined $line) {
+                $sel->remove($fh);
+                next;
+            }
+            if($fh == $rdr) {
+                $gotout .= $line;
+            }elsif($fh == $err) {
+                $goterr .= $line;
+            }else{
+                die "[ERROR]: This should never execute!";
+            }
+        }
+    }
+ close($wtr);
+ waitpid($pid, 0);
   if ($? == -1) {
       print STDERR "Failed to execute: @_\n  $!\n";
       exit(1);
