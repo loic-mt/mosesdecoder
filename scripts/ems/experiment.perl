@@ -1591,7 +1591,7 @@ sub check_if_crashed {
     # check if output file empty
     my $output = &get_default_file(&deconstruct_name($DO_STEP[$i]));
     # currently only works for single output file
-    if (-e $output && -z $output) {
+    if (-e $output && -z $output && !-d $output) {
       push @DIGEST,"output file $output is empty";
     }
 
